@@ -6,6 +6,15 @@
 
 set -o pipefail
 
+case "${1:-}" in
+    ""|--check)
+        ;;
+    *)
+        echo "Usage: $0 [--check]" >&2
+        exit 2
+        ;;
+esac
+
 # Keep this overridable so OS detection can be tested with a fixture.
 OS_RELEASE_FILE="${OS_RELEASE_FILE:-/etc/os-release}"
 
@@ -75,6 +84,12 @@ detect_host_os() {
 echo "🔍 Detecting host operating system..."
 if ! detect_host_os; then
     exit 2
+fi
+
+if [[ "${1:-}" == "--check" ]]; then
+    echo "✅ Host OS is supported; pacman and sudo are available."
+    echo "ℹ️ Check-only mode: no packages, services, or user groups were changed."
+    exit 0
 fi
 
 echo "🔧 Installing KVM + Libvirt + Virt-Manager on $OS_NAME..."
