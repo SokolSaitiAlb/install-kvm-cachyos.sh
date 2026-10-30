@@ -31,7 +31,7 @@ OS
 
 : > "$TMP_DIR/unsupported.log"
 if PATH="$MOCK_BIN:$PATH" CALL_LOG="$TMP_DIR/unsupported.log" USER=test-user \
-    OS_RELEASE_FILE="$TMP_DIR/debian-os-release" bash "$INSTALLER"; then
+    OS_RELEASE_FILE="$TMP_DIR/debian-os-release" bash "$INSTALLER" --check; then
     echo "FAIL: Debian was unexpectedly accepted." >&2
     exit 1
 fi
@@ -42,13 +42,24 @@ if [[ -s "$TMP_DIR/unsupported.log" ]]; then
     exit 1
 fi
 
-# CachyOS is accepted and all privileged calls are routed through the sudo stub.
+# CachyOS check-only mode must accept the host without invoking sudo.
 cat > "$TMP_DIR/cachyos-os-release" <<'OS'
 NAME="CachyOS"
 ID=cachyos
 ID_LIKE=arch
 OS
 
+: > "$TMP_DIR/check-only.log"
+PATH="$MOCK_BIN:$PATH" CALL_LOG="$TMP_DIR/check-only.log" USER=test-user \
+    OS_RELEASE_FILE="$TMP_DIR/cachyos-os-release" bash "$INSTALLER" --check
+
+if [[ -s "$TMP_DIR/check-only.log" ]]; then
+    echo "FAIL: --check invoked a privileged command." >&2
+    cat "$TMP_DIR/check-only.log" >&2
+    exit 1
+fi
+
+# Normal install path is exercised only through the sudo stub.
 : > "$TMP_DIR/supported.log"
 PATH="$MOCK_BIN:$PATH" CALL_LOG="$TMP_DIR/supported.log" USER=test-user \
     OS_RELEASE_FILE="$TMP_DIR/cachyos-os-release" bash "$INSTALLER"
@@ -62,14 +73,14 @@ NO_PACMAN_BIN="$TMP_DIR/no-pacman-bin"
 mkdir -p "$NO_PACMAN_BIN"
 cat > "$NO_PACMAN_BIN/sudo" <<'MOCK'
 #!/usr/bin/env bash
-printf '%s\\n' "$*" >> "$CALL_LOG"
+printf '%s\n' "$*" >> "$CALL_LOG"
 exit 0
 MOCK
 ln -s "$(command -v awk)" "$NO_PACMAN_BIN/awk"
 chmod +x "$NO_PACMAN_BIN/sudo"
 : > "$TMP_DIR/missing-pacman.log"
 if PATH="$NO_PACMAN_BIN" CALL_LOG="$TMP_DIR/missing-pacman.log" USER=test-user \
-    OS_RELEASE_FILE="$TMP_DIR/cachyos-os-release" /bin/bash "$INSTALLER"; then
+    OS_RELEASE_FILE="$TMP_DIR/cachyos-os-release" /bin/bash "$INSTALLER" --check; then
     echo "FAIL: installer accepted an Arch-family host without pacman." >&2
     exit 1
 fi
@@ -81,5 +92,6 @@ if [[ -s "$TMP_DIR/missing-pacman.log" ]]; then
 fi
 
 echo "PASS: unsupported OS is rejected without privileged commands."
-echo "PASS: CachyOS is accepted and expected commands are invoked."
+echo "PASS: CachyOS --check succeeds without privileged commands."
+echo "PASS: CachyOS install path invokes expected commands through the sudo stub."
 echo "PASS: Arch-family OS without pacman is rejected safely."
