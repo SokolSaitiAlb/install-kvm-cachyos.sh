@@ -60,10 +60,16 @@ grep -q '^usermod -aG libvirt test-user$' "$TMP_DIR/supported.log"
 # Arch-family metadata without pacman must fail before invoking sudo.
 NO_PACMAN_BIN="$TMP_DIR/no-pacman-bin"
 mkdir -p "$NO_PACMAN_BIN"
-ln -s "$(command -v sudo)" "$NO_PACMAN_BIN/sudo"
+cat > "$NO_PACMAN_BIN/sudo" <<'MOCK'
+#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$CALL_LOG"
+exit 0
+MOCK
+ln -s "$(command -v awk)" "$NO_PACMAN_BIN/awk"
+chmod +x "$NO_PACMAN_BIN/sudo"
 : > "$TMP_DIR/missing-pacman.log"
-if PATH="$NO_PACMAN_BIN:/usr/bin:/bin" CALL_LOG="$TMP_DIR/missing-pacman.log" USER=test-user \
-    OS_RELEASE_FILE="$TMP_DIR/cachyos-os-release" bash "$INSTALLER"; then
+if PATH="$NO_PACMAN_BIN" CALL_LOG="$TMP_DIR/missing-pacman.log" USER=test-user \
+    OS_RELEASE_FILE="$TMP_DIR/cachyos-os-release" /bin/bash "$INSTALLER"; then
     echo "FAIL: installer accepted an Arch-family host without pacman." >&2
     exit 1
 fi
