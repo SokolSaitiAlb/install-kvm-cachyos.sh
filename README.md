@@ -19,6 +19,7 @@ Unsupported distributions, missing OS metadata, and Arch-family systems without 
 - Adds the invoking user to the `libvirt` group.
 - Detects the host distribution before making system changes.
 - Fails closed on unsupported or unidentifiable operating systems.
+- Provides a non-mutating `--check` mode to verify host compatibility.
 
 ## Installation and usage
 
@@ -35,7 +36,13 @@ Review the script before running it:
 less install-kvm-cachyos.sh
 ```
 
-Make it executable and run it as your regular user (the script invokes `sudo` for privileged operations):
+First, verify the host without installing packages or changing services/groups:
+
+```bash
+./install-kvm-cachyos.sh --check
+```
+
+If the check succeeds and you intend to install KVM/libvirt, run the installer as your regular user (it invokes `sudo` for privileged operations):
 
 ```bash
 chmod +x install-kvm-cachyos.sh
@@ -53,6 +60,8 @@ virt-manager
 The script uses the `ID` and `ID_LIKE` fields in `/etc/os-release`. It accepts CachyOS, Arch Linux, and distributions whose `ID_LIKE` explicitly contains `arch`. It also verifies that `pacman` and `sudo` are available.
 
 If detection fails or the distribution is unsupported, the script exits before calling `pacman`, `systemctl`, or `usermod`. This is intentional: package names and service assumptions in this installer are Arch-specific.
+
+The `--check` option performs the same OS and dependency validation, then exits before any privileged installation command. It is the recommended way to verify the actual host.
 
 ## Included packages
 
@@ -84,13 +93,15 @@ If detection fails or the distribution is unsupported, the script exits before c
 
 ## Testing
 
-The OS detection function can be exercised with a temporary os-release fixture by setting `OS_RELEASE_FILE`. For example:
+Run the mocked tests:
 
 ```bash
-OS_RELEASE_FILE=/path/to/test-os-release ./install-kvm-cachyos.sh
+bash -n install-kvm-cachyos.sh
+bash -n tests/test-os-detection.sh
+bash tests/test-os-detection.sh
 ```
 
-Do not use a fabricated OS-release file for a real installation.
+The tests use temporary `os-release` fixtures and mocked privileged commands; they do not install packages or alter the host.
 
 ## License
 
