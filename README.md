@@ -1,72 +1,108 @@
-````markdown
 # KVM + Libvirt + Virt-Manager Installer for CachyOS (Arch)
 
-This script installs and configures **KVM virtualization** on CachyOS (or any Arch-based system) with `virt-manager` for a graphical interface.
+A Bash installer for setting up **QEMU/KVM**, **libvirt**, and **virt-manager** on CachyOS and supported Arch-family Linux distributions.
 
-## 📋 Features
-- Installs **QEMU/KVM**, Libvirt, Virt-Manager, and networking utilities.
-- Enables and starts the `libvirtd` service automatically.
-- Adds your user to the `libvirt` group for non-root VM management.
-- Works on CachyOS, Arch Linux, and other Arch-based distributions.
+## Supported operating systems
 
-## 🚀 Installation & Usage
+The installer reads `/etc/os-release` before executing any package-manager or service command.
 
-1. **Download the script**  
-   ```bash
-   wget https://example.com/install-kvm-cachyos.sh
-````
+- **CachyOS** (`ID=cachyos`)
+- **Arch Linux** (`ID=arch`)
+- Other distributions that explicitly declare Arch in `ID_LIKE`, provided `pacman` and `sudo` are available
 
-2. **Make it executable**
+Unsupported distributions, missing OS metadata, and Arch-family systems without `pacman` are rejected safely. The script does **not** fall back to `apt`, `dnf`, `zypper`, or another package manager.
 
-   ```bash
-   chmod +x install-kvm-cachyos.sh
-   ```
+## Features
 
-3. **Run the script**
+- Installs QEMU/KVM, Libvirt, Virt-Manager, and networking utilities.
+- Enables and starts the `libvirtd` service.
+- Adds the invoking user to the `libvirt` group.
+- Detects the host distribution before making system changes.
+- Fails closed on unsupported or unidentifiable operating systems.
+- Provides a non-mutating `--check` mode to verify host compatibility.
 
-   ```bash
-   ./install-kvm-cachyos.sh
-   ```
+## Installation and usage
 
-4. **Log out and back in**
-   This step is required so group changes take effect.
+Clone the repository:
 
-5. **Launch Virt-Manager**
+```bash
+git clone https://github.com/SokolSaitiAlb/install-kvm-cachyos.sh.git
+cd install-kvm-cachyos.sh
+```
 
-   ```bash
-   virt-manager
-   ```
+Review the script before running it:
 
-## 🛠 Included Packages
+```bash
+less install-kvm-cachyos.sh
+```
 
-* `qemu-full` — Full QEMU virtualization support
-* `virt-manager` — GUI for managing VMs
-* `virt-viewer` — Lightweight VM viewer
-* `dnsmasq` — Network configuration for VMs
-* `vde2`, `bridge-utils` — Networking utilities for virtual bridges
-* `openbsd-netcat` — Networking tool
-* `libvirt` — Virtualization management daemon
-* `iptables-nft` — Firewall backend for networking
+First, verify the host without installing packages or changing services/groups:
 
-## ⚠️ Notes
+```bash
+./install-kvm-cachyos.sh --check
+```
 
-* Make sure virtualization is enabled in your BIOS/UEFI (`Intel VT-x` / `AMD-V`).
-* If you use **Wayland** and Virt-Manager has scaling issues, run it with:
+If the check succeeds and you intend to install KVM/libvirt, run the installer as your regular user (it invokes `sudo` for privileged operations):
+
+```bash
+chmod +x install-kvm-cachyos.sh
+./install-kvm-cachyos.sh
+```
+
+Log out and back in after completion so the new `libvirt` group membership takes effect. Then launch:
+
+```bash
+virt-manager
+```
+
+## Detection behavior
+
+The script uses the `ID` and `ID_LIKE` fields in `/etc/os-release`. It accepts CachyOS, Arch Linux, and distributions whose `ID_LIKE` explicitly contains `arch`. It also verifies that `pacman` and `sudo` are available.
+
+If detection fails or the distribution is unsupported, the script exits before calling `pacman`, `systemctl`, or `usermod`. This is intentional: package names and service assumptions in this installer are Arch-specific.
+
+The `--check` option performs the same OS and dependency validation, then exits before any privileged installation command. It is the recommended way to verify the actual host.
+
+## Included packages
+
+- `qemu-full` — QEMU virtualization packages
+- `virt-manager` — graphical VM manager
+- `virt-viewer` — VM console viewer
+- `dnsmasq` — virtual network DHCP/DNS support
+- `vde2`, `bridge-utils` — virtual networking utilities
+- `openbsd-netcat` — networking utility
+- `libvirt` — virtualization management
+- `iptables-nft` — firewall backend used by libvirt networking
+
+## Prerequisites and notes
+
+- Enable Intel VT-x or AMD-V/SVM in BIOS/UEFI.
+- Run the script as a regular user with working `sudo` privileges.
+- Review package prompts before confirming installation.
+- If Virt-Manager has scaling issues under Wayland, try:
 
   ```bash
   GDK_SCALE=1 virt-manager
   ```
-* To check if KVM is running:
+
+- Check libvirt domains with:
 
   ```bash
-  sudo virsh list --all
+  virsh -c qemu:///system list --all
   ```
 
-## 📄 License
+## Testing
 
-This script is provided "as-is" without warranty. Use at your own risk.
+Run the mocked tests:
 
+```bash
+bash -n install-kvm-cachyos.sh
+bash -n tests/test-os-detection.sh
+bash tests/test-os-detection.sh
 ```
 
----
+The tests use temporary `os-release` fixtures and mocked privileged commands; they do not install packages or alter the host.
 
+## License
+
+This script is provided "as-is" without warranty. Use it only after reviewing the commands and understanding the system changes it makes.
